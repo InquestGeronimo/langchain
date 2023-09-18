@@ -1,6 +1,6 @@
 from typing import Any
 
-from langchain.embeddings.base import Embeddings
+from langchain.schema.embeddings import Embeddings
 from langchain.pydantic_v1 import BaseModel, Extra
 
 from transformers import Pipeline
@@ -83,7 +83,7 @@ class DeepSparseEmbeddings(BaseModel, Embeddings):
                 encode_kwargs=encode_kwargs
             )
     """
-    def __init__(self, model_name: str = DEFAULT_MODEL_NAME):
+    def __init__(self, model_name: DEFAULT_MODEL_NAME):
         """
         Initialize the DeepSparseEmbeddings.
 
@@ -145,3 +145,4 @@ class DeepSparseEmbeddings(BaseModel, Embeddings):
             List[List[float]]: List of document embeddings.
         """
         return [self.embed_query(text) for text in texts]
+    
