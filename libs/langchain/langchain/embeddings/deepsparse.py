@@ -67,14 +67,14 @@ class SentenceEmbeddingPipeline(Pipeline):
 class DeepSparseEmbeddings(BaseModel, Embeddings):
     """DeepSparse embedding models.
 
-    To use, you should have the ``optimum.deepsparse`` and ''torch'' packages installed.
+    To use, you should have ``optimum.deepsparse`` package installed.
 
     Example:
         .. code-block:: python
 
             from langchain.embeddings import DeepSparseEmbeddings
 
-            model_name = "sentence-transformers/all-mpnet-base-v2"
+            model_name = "zeroshot/oneshot-minilm"
             model_kwargs = {'device': 'cpu'}
             encode_kwargs = {'normalize_embeddings': False}
             sparse_embeddings = DeepSparseEmbeddings(
