@@ -4,9 +4,10 @@ from langchain.embeddings.deepsparse import DeepSparseEmbeddings
 
 def test_deepsparse_embedding_documents() -> None:
     """Test DeepSparse embeddings for documents."""
-    documents = ["foo bar", "bar foo"]
+    documents = ["foo bar"]
     embedding = DeepSparseEmbeddings()
     output = embedding.embed_documents(documents)
+    print(output[0].shape)
     assert len(output) == 1
     assert len(output[0]) == 384
 

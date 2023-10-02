@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict, Optional
 
 from langchain.schema.embeddings import Embeddings
 from langchain.pydantic_v1 import BaseModel, Extra
@@ -27,16 +27,10 @@ class SentenceEmbeddingPipeline(Pipeline):
     
     client: Any  #: :meta private:
     
-    def __init__(self, model, tokenizer):
-        """
-        Initialize the SentenceEmbeddingPipeline.
-
-        Args:
-            model (Any): The model for sentence embeddings.
-            tokenizer (Any): The tokenizer for preprocessing.
-        """
-        self.model = model
-        self.tokenizer = tokenizer
+    def _sanitize_parameters(self, **kwargs):
+        
+        preprocess_kwargs = {}
+        return preprocess_kwargs, {}, {}
 
     def preprocess(self, inputs):
         """
@@ -48,8 +42,7 @@ class SentenceEmbeddingPipeline(Pipeline):
         Returns:
             Dict[str, torch.Tensor]: Preprocessed input tensors.
         """
-        encoded_inputs = self.tokenizer(inputs, padding=True, truncation=True, return_tensors='pt')
-        return encoded_inputs
+        return self.tokenizer(inputs, padding=True, truncation=True, return_tensors='pt')
 
     def _forward(self, model_inputs):
         """
@@ -63,6 +56,15 @@ class SentenceEmbeddingPipeline(Pipeline):
         """
         outputs = self.model(**model_inputs)
         return {"outputs": outputs, "attention_mask": model_inputs["attention_mask"]}
+    
+    def postprocess(self, model_outputs):
+        
+        import torch.nn.functional as F
+        # Perform pooling
+        sentence_embeddings = mean_pooling(model_outputs["outputs"], model_outputs['attention_mask'])
+        # Normalize embeddings
+        sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
+        return sentence_embeddings
 
 class DeepSparseEmbeddings(BaseModel, Embeddings):
     """DeepSparse embedding models.
@@ -83,7 +85,12 @@ class DeepSparseEmbeddings(BaseModel, Embeddings):
                 encode_kwargs=encode_kwargs
             )
     """
-    def __init__(self, model_name: DEFAULT_MODEL_NAME):
+    client: Any  #: :meta private:
+    model_name: str = DEFAULT_MODEL_NAME
+    """Model name to use."""
+
+    
+    def __init__(self, **kwargs: Any):
         """
         Initialize the DeepSparseEmbeddings.
 
@@ -91,7 +98,7 @@ class DeepSparseEmbeddings(BaseModel, Embeddings):
             model_name (str, optional): The name of the model. Defaults to DEFAULT_MODEL_NAME.
         """
         super().__init__()
-        self.model_name = model_name
+        # self.model_name = model_name
         try:
             import optimum.deepsparse
         except ImportError as exc:
@@ -100,7 +107,14 @@ class DeepSparseEmbeddings(BaseModel, Embeddings):
                 "Please make sure it is installed correctly. "
                 "Try: pip install git+https://github.com/neuralmagic/optimum-deepsparse.git"
             ) from exc
-        self.init_model()
+        
+        # from optimum.deepsparse import DeepSparseModelForFeatureExtraction
+        # from transformers.onnx.utils import get_preprocessor
+        
+        # self.sparse_model = DeepSparseModelForFeatureExtraction.from_pretrained(self.model_name, export=False)
+        # self.tokenizer = get_preprocessor(self.model_name)
+        # self.client = SentenceEmbeddingPipeline(model=self.sparse_model, tokenizer=self.tokenizer)
+        self.client = self.init_model()
         
     class Config:
         """Configuration for this pydantic object."""
@@ -114,7 +128,7 @@ class DeepSparseEmbeddings(BaseModel, Embeddings):
         
         sparse_model = DeepSparseModelForFeatureExtraction.from_pretrained(self.model_name, export=False)
         tokenizer = get_preprocessor(self.model_name)
-        self.model = SentenceEmbeddingPipeline(model=sparse_model, tokenizer=tokenizer)
+        return SentenceEmbeddingPipeline(model=sparse_model, tokenizer=tokenizer)
 
     def embed_query(self, text):
         """
@@ -126,13 +140,7 @@ class DeepSparseEmbeddings(BaseModel, Embeddings):
         Returns:
             List[float]: Query embeddings.
         """
-        import torch.nn.functional as F
-        
-        encoded_text = self.model.preprocess([text])
-        model_outputs = self.model._forward(encoded_text)
-        sentence_embeddings = mean_pooling(model_outputs["outputs"], model_outputs['attention_mask'])
-        sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
-        return sentence_embeddings.tolist()[0]
+        return self.client(text)[0]
 
     def embed_documents(self, texts):
         """
